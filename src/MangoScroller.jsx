@@ -20,11 +20,11 @@ export default function MangoScroller({ progress = 0 }) {
   const progressRef = useRef(progress)
   progressRef.current = progress
 
-  // Direct canvas render helper
+  // Direct canvas render helper - guarantees zero flicker and pristine clarity
   const renderFrame = useCallback((frameIdx) => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const ctx = canvas.getContext('2d')
+    const ctx = canvas.getContext('2d', { alpha: false }) // pure opaque black backing for maximum FPS & sharpness
     if (!ctx) return
 
     const images = imagesRef.current
@@ -32,7 +32,7 @@ export default function MangoScroller({ progress = 0 }) {
 
     const clamped = Math.max(0, Math.min(TOTAL_FRAMES - 1, frameIdx))
 
-    // Find the closest loaded image if current frame is not ready
+    // Find the closest loaded image if current frame is still downloading
     let imgToDraw = images[clamped]
     if (!imgToDraw || !imgToDraw.complete || imgToDraw.naturalWidth === 0) {
       for (let offset = 1; offset < TOTAL_FRAMES; offset++) {
@@ -48,19 +48,21 @@ export default function MangoScroller({ progress = 0 }) {
     }
 
     if (imgToDraw && imgToDraw.complete && imgToDraw.naturalWidth > 0) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = 'high'
+      // Direct full-canvas draw without clearing to avoid any blank flicker
       ctx.drawImage(imgToDraw, 0, 0, canvas.width, canvas.height)
       lastRenderedIndexRef.current = clamped
     }
   }, [])
 
-  // 1. Progressive preloading of all 208 frames into browser cache
+  // 1. Intelligent progressive preloading of all 208 authentic frames
   useEffect(() => {
     let mounted = true
     const images = new Array(TOTAL_FRAMES)
     imagesRef.current = images
 
-    // Load first frame immediately for instant first-paint
+    // A. Load first frame immediately for instant first-paint
     const firstImg = new Image()
     firstImg.src = getFramePath(1)
     firstImg.onload = () => {
@@ -70,18 +72,28 @@ export default function MangoScroller({ progress = 0 }) {
       renderFrame(0)
     }
 
-    // Load remaining frames
+    // B. Prioritize scrubbing anchor frames (every 4th frame), then all in-between frames
+    const keyIndices = []
+    const otherIndices = []
     for (let i = 2; i <= TOTAL_FRAMES; i++) {
+      if (i % 4 === 0) keyIndices.push(i)
+      else otherIndices.push(i)
+    }
+
+    const loadQueue = [...keyIndices, ...otherIndices]
+
+    for (const i of loadQueue) {
       const img = new Image()
       img.src = getFramePath(i)
       img.onload = () => {
         if (!mounted) return
         images[i - 1] = img
+        // If current scrub position targets this or adjacent frame, render immediately
         const currentTarget = Math.min(
           TOTAL_FRAMES - 1,
           Math.floor(Math.max(0, Math.min(1, progressRef.current)) * (TOTAL_FRAMES - 1))
         )
-        if (currentTarget === i - 1) {
+        if (currentTarget === i - 1 || lastRenderedIndexRef.current === -1) {
           renderFrame(currentTarget)
         }
       }
@@ -114,10 +126,10 @@ export default function MangoScroller({ progress = 0 }) {
       mouseCurrentRef.current.y += (mouseTargetRef.current.y - mouseCurrentRef.current.y) * 0.08
 
       if (rigRef.current) {
-        const mx = mouseCurrentRef.current.x * 12
-        const my = mouseCurrentRef.current.y * 12
-        const tiltX = -mouseCurrentRef.current.y * 5
-        const tiltY = mouseCurrentRef.current.x * 7
+        const mx = mouseCurrentRef.current.x * 10
+        const my = mouseCurrentRef.current.y * 10
+        const tiltX = -mouseCurrentRef.current.y * 4
+        const tiltY = mouseCurrentRef.current.x * 6
         rigRef.current.style.transform = `translate3d(${mx}px, ${my}px, 0) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`
       }
 
@@ -151,27 +163,18 @@ export default function MangoScroller({ progress = 0 }) {
       {/* 3D Floating Interactive Parallax Rig */}
       <div
         ref={rigRef}
-        className="relative w-[360px] h-[202px] sm:w-[580px] sm:h-[326px] md:w-[820px] md:h-[461px] lg:w-[1040px] lg:h-[585px] max-w-[95vw] transition-transform ease-out duration-75"
+        className="relative w-[360px] h-[202px] sm:w-[580px] sm:h-[326px] md:w-[820px] md:h-[461px] lg:w-[1100px] lg:h-[619px] max-w-[95vw] transition-transform ease-out duration-75"
         style={{
           transformStyle: 'preserve-3d'
         }}
       >
-        {/* Soft realistic studio contact shadow directly grounded under mango base */}
-        <div
-          className="absolute top-[76%] left-1/2 -translate-x-1/2 w-[36%] h-[8%] rounded-[100%] bg-black/90 blur-2xl pointer-events-none transition-all duration-300"
-          style={{
-            transform: 'translateX(-50%) scaleY(0.4)',
-            opacity: Math.max(0.2, 0.7 - progress * 0.3)
-          }}
-        />
-
-        {/* Transparent Canvas Frame Rendering Your 208 Authentic Peeling Frames */}
+        {/* Crisp Canvas Frame Rendering Authentic 208 Peeling Frames */}
         <div className="relative w-full h-full">
           <canvas
             ref={canvasRef}
             width={1280}
             height={720}
-            className="w-full h-full object-contain select-none transition-opacity duration-300 drop-shadow-[0_25px_45px_rgba(0,0,0,0.9)]"
+            className="w-full h-full object-contain select-none bg-black"
             style={{
               opacity: firstFrameReady ? 1 : 0
             }}

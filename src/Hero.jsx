@@ -9,29 +9,54 @@ export default function Hero() {
 
   useLayoutEffect(() => {
     const ctx = gsap.context(() => {
-      gsap.set('.show-copy', { autoAlpha: 0, y: 40 })
+      const isDesktop = window.matchMedia('(min-width: 768px)').matches
 
+      // 1. Initial states:
+      // At scroll = 0: Headline typography is unblocked and clear. Mango is completely hidden.
+      gsap.set('.show-copy', { autoAlpha: 0, y: 30 })
+      gsap.set('.hero-seq-wrap', { autoAlpha: 0, scale: 0.94, y: 15 })
+
+      // 2. Master pinned scroll timeline
       const tl = gsap.timeline({
         defaults: { ease: 'none' },
         scrollTrigger: {
           trigger: root.current,
           start: 'top top',
           end: '+=450%',
-          scrub: 0.8,
+          scrub: 0.4, // Responsive real-time scrub with zero lag
           pin: true,
           anticipatePin: 1,
           onUpdate: (self) => {
-            setScrollProgress(self.progress)
+            const p = self.progress
+            // Phase 1 (0.00 to 0.08): Mango emerges smoothly into scene as whole fruit (frame 1)
+            // Phase 2 (0.08 to 0.86): Mango scrubs smoothly through all 208 authentic peeling frames
+            // Phase 3 (0.86 to 1.00): Fully peeled fruit stays visible alongside bottle details
+            if (p < 0.08) {
+              setScrollProgress(0)
+            } else if (p < 0.86) {
+              setScrollProgress((p - 0.08) / (0.86 - 0.08))
+            } else {
+              setScrollProgress(1)
+            }
           }
         }
       })
 
-      // Master synchronized timeline
-      tl.to('.hero-copy', { opacity: 0, yPercent: -35, duration: 0.15 }, 0.04)
-        .to('.hero-hint', { opacity: 0, duration: 0.08 }, 0.02)
-        .to('.hero-seq-wrap', { xPercent: -22, duration: 0.18, ease: 'power2.inOut' }, 0.82)
-        .to('.hero-cream', { opacity: 1, duration: 0.18 }, 0.82)
-        .to('.show-copy', { autoAlpha: 1, y: 0, duration: 0.15 }, 0.85)
+      // Timeline choreography:
+      // A. Scroll begins (0.00 -> 0.08):
+      //    Hero copy fades out, mango emerges smoothly into center view and STAYS VISIBLE!
+      tl.to('.hero-copy', { opacity: 0, yPercent: -20, duration: 0.08, ease: 'power1.out' }, 0)
+        .to('.hero-hint', { opacity: 0, duration: 0.04 }, 0)
+        .to('.hero-seq-wrap', { autoAlpha: 1, scale: 1, y: 0, duration: 0.08, ease: 'power1.out' }, 0.01)
+        // B. Final reveal (0.86 -> 1.00):
+        //    Mango gently offsets to make room for bottle card, remaining fully visible and crystal clear!
+        .to('.hero-seq-wrap', {
+          xPercent: isDesktop ? -18 : 0,
+          scale: isDesktop ? 0.95 : 0.85,
+          duration: 0.14,
+          ease: 'power2.inOut'
+        }, 0.86)
+        .to('.show-copy', { autoAlpha: 1, y: 0, duration: 0.12, ease: 'power2.out' }, 0.87)
     }, root)
 
     return () => ctx.revert()
@@ -41,12 +66,9 @@ export default function Hero() {
     <section
       ref={root}
       id="product"
-      className="relative h-screen w-full overflow-hidden select-none"
-      style={{ background: 'radial-gradient(ellipse at 50% 38%, #181818 0%, #0a0a0a 50%, #000000 100%)' }}
+      className="relative h-screen w-full overflow-hidden select-none bg-[#000000]"
     >
-      <div className="hero-cream absolute inset-0 z-0 opacity-0 bg-[#000000]" />
-
-      {/* Hero Big Typography Backdrop */}
+      {/* Hero Big Typography (Clean & Full View at Top - Mango Hidden Initially) */}
       <div className="hero-copy absolute inset-0 z-0 flex flex-col items-center justify-center text-center px-4 pointer-events-none">
         <div className="inline-flex items-center gap-2 bg-neutral-900/80 backdrop-blur-md border border-neutral-700/50 rounded-full px-5 py-1.5 mb-6">
           <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
@@ -62,7 +84,7 @@ export default function Hero() {
         </p>
       </div>
 
-      {/* Real Mango Continuous Scroll Peeling Animation (Your 208 Frames) */}
+      {/* Real Mango Continuous Scroll Peeling Animation (Emerges On Scroll & Stays Visible) */}
       <div className="hero-seq-wrap absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
         <MangoScroller progress={scrollProgress} />
       </div>
