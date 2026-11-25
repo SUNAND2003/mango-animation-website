@@ -163,7 +163,7 @@ export default function MangoScroller({ progress = 0 }) {
       {/* 3D Floating Interactive Parallax Rig */}
       <div
         ref={rigRef}
-        className="relative w-[360px] h-[202px] sm:w-[580px] sm:h-[326px] md:w-[820px] md:h-[461px] lg:w-[1100px] lg:h-[619px] max-w-[95vw] transition-transform ease-out duration-75"
+        className="relative w-[92vw] max-w-[360px] sm:max-w-[560px] md:max-w-[820px] lg:max-w-[1100px] aspect-[16/9] transition-transform ease-out duration-75"
         style={{
           transformStyle: 'preserve-3d'
         }}
